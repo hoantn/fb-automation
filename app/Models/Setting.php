@@ -34,7 +34,6 @@ class Setting extends Model
 
         $payload = [];
 
-        // Decide type
         $isScalar = is_bool($value) || is_scalar($value);
         $type = $isScalar ? 'string' : 'json';
 
@@ -46,7 +45,7 @@ class Setting extends Model
 
         if ($hasValueJson) {
             $json = json_encode($value, JSON_UNESCAPED_UNICODE);
-            if ($json === null) $json = '""'; // avoid NOT NULL
+            if ($json === null) $json = '""';
             $payload['value_json'] = $json;
         }
 
@@ -54,7 +53,7 @@ class Setting extends Model
             $payload['type'] = $type;
         }
 
-        if (!$payload) { // very old schema fallback
+        if (!$payload) {
             $payload['value'] = is_scalar($value) ? (string)$value : json_encode($value, JSON_UNESCAPED_UNICODE);
         }
 
