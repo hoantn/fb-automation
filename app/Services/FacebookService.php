@@ -11,7 +11,20 @@ use App\Models\Customer;
 class FacebookService
 {
     protected string $graphBase = 'https://graph.facebook.com/v17.0';
+	
+	public function subscribePage(string $metaPageId, string $pageAccessToken): bool
+    {
+        if (!$metaPageId || !$pageAccessToken) return false;
 
+        $resp = Http::asForm()
+            ->withToken($pageAccessToken)
+            ->post("{$this->graph}/{$metaPageId}/subscribed_apps", [
+                // Những field đã dùng ở step 2
+                'subscribed_fields' => 'messages,messaging_postbacks,message_deliveries,message_reads',
+            ]);
+
+        return $resp->ok();
+    }
     public function verifySignature(string $payload, ?string $headerSignature): bool
     {
         $secret = env('FACEBOOK_APP_SECRET');
