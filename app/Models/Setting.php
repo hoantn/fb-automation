@@ -3,25 +3,52 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 
 class Setting extends Model
 {
     protected $table = 'settings';
-    protected $fillable = ['key','value'];
+    protected $fillable = ['key','value','value_json'];
     public $timestamps = false;
 
     public static function get(string $key, $default = null)
     {
         $row = static::where('key',$key)->first();
-        return $row ? $row->value : $default;
+        if (!$row) return $default;
+
+        if (Schema::hasColumn('settings', 'value') && $row->value !== null) {
+            return $row->value;
+        }
+        if (Schema::hasColumn('settings', 'value_json')) {
+            $decoded = json_decode($row->value_json, true);
+            return json_last_error() === JSON_ERROR_NONE ? $decoded : $row->value_json;
+        }
+        return $default;
     }
 
     public static function set(string $key, $value): void
     {
-        // chuẩn hóa giá trị trước khi lưu
-        if (is_bool($value))     $value = $value ? '1' : '0';
-        elseif (is_array($value) || is_object($value)) $value = json_encode($value, JSON_UNESCAPED_UNICODE);
+        $hasValue     = Schema::hasColumn('settings', 'value');
+        $hasValueJson = Schema::hasColumn('settings', 'value_json');
 
-        static::updateOrCreate(['key'=>$key], ['value'=>(string)$value]);
+        $payload = [];
+
+        if ($hasValue) {
+            if (is_bool($value))        $payload['value'] = $value ? '1' : '0';
+            elseif (is_scalar($value))  $payload['value'] = (string)$value;
+            else                        $payload['value'] = json_encode($value, JSON_UNESCAPED_UNICODE);
+        }
+
+        if ($hasValueJson) {
+            $json = json_encode($value, JSON_UNESCAPED_UNICODE);
+            if ($json === null) $json = '""'; // tránh NOT NULL
+            $payload['value_json'] = $json;
+        }
+
+        if (!$payload) { // bảng rất cũ: fallback
+            $payload['value'] = is_scalar($value) ? (string)$value : json_encode($value, JSON_UNESCAPED_UNICODE);
+        }
+
+        static::updateOrCreate(['key'=>$key], $payload);
     }
 }
