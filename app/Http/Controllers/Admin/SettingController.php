@@ -16,7 +16,6 @@ class SettingController extends Controller
             'auto_reply_enabled'         => (bool)config('system.auto_reply_enabled', true),
         ];
 
-        // nếu bạn có bảng settings, có thể merge thêm Setting::get(...) ở đây
         return view('admin.settings', compact('config'));
     }
 
@@ -28,7 +27,6 @@ class SettingController extends Controller
             'auto_reply_enabled'         => 'nullable|in:1',
         ]);
 
-        // lưu dạng .env runtime +/hoặc bảng settings
         Setting::set('dashboard_refresh_interval', (int)$data['dashboard_refresh_interval']);
         Setting::set('cache_duration',             (int)$data['cache_duration']);
         Setting::set('auto_reply_enabled',         isset($data['auto_reply_enabled']));
