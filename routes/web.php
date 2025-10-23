@@ -7,6 +7,7 @@ use App\Http\Controllers\PageConnectController;
 use App\Http\Controllers\WebhookController;
 use App\Http\Controllers\InboxController;
 use App\Models\Page;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 
 // Home (trang chủ test)
 Route::get('/', [HomeController::class, 'index'])->name('home');
