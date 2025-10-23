@@ -6,19 +6,22 @@ use Illuminate\Database\Eloquent\Model;
 
 class Setting extends Model
 {
+    protected $table = 'settings';
     protected $fillable = ['key','value'];
     public $timestamps = false;
-    protected $casts = ['value' => 'array'];
 
-    public static function get(string $key, $default=null)
+    public static function get(string $key, $default = null)
     {
         $row = static::where('key',$key)->first();
-        if (!$row) return $default;
-        return $row->value ?? $default;
+        return $row ? $row->value : $default;
     }
 
     public static function set(string $key, $value): void
     {
-        static::updateOrCreate(['key'=>$key], ['value'=>$value]);
+        // chuẩn hóa giá trị trước khi lưu
+        if (is_bool($value))     $value = $value ? '1' : '0';
+        elseif (is_array($value) || is_object($value)) $value = json_encode($value, JSON_UNESCAPED_UNICODE);
+
+        static::updateOrCreate(['key'=>$key], ['value'=>(string)$value]);
     }
 }

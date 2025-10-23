@@ -17,9 +17,6 @@ timeout /t 3 >nul
 echo [3/4] Starting Ngrok Tunnel...
 start "Ngrok" cmd /k ngrok http 8000
 
-timeout /t 2 >nul
-start http://localhost:8000/admin/login
-
 echo.
 echo ✅ All services started successfully!
 pause

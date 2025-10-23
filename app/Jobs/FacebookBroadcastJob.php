@@ -7,9 +7,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use App\Models\{Page, Customer, Broadcast};
+use App\Models\{Broadcast, Page, Customer};
 use App\Jobs\FacebookSendMessage;
-use Illuminate\Support\Facades\Bus;
 
 class FacebookBroadcastJob implements ShouldQueue
 {
@@ -26,19 +25,14 @@ class FacebookBroadcastJob implements ShouldQueue
         $page = Page::find($broadcast->page_id);
         if (!$page) return;
 
-        $customers = Customer::where('page_id', $page->id)->pluck('id')->toArray();
-        $broadcast->total = count($customers);
-        $broadcast->status = 'running';
-        $broadcast->save();
+        $customerIds = Customer::where('page_id', $page->id)->pluck('id')->all();
+        $broadcast->update(['total' => count($customerIds), 'status' => 'running']);
 
-        $batch = Bus::batch([])->dispatch();
         $delay = 0;
-        foreach ($customers as $cid) {
-            $job = (new FacebookSendMessage($page->id, $cid, $broadcast->content))
-                ->onQueue('fb-send')
-                ->delay(now()->addSeconds($delay));
-            $batch->add($job);
-            $delay += 1;
+        foreach ($customerIds as $cid) {
+            FacebookSendMessage::dispatch($page->id, $cid, $broadcast->content)
+                ->onQueue('fb-send')->delay(now()->addSeconds($delay));
+            $delay += 1; // giãn cách an toàn
         }
     }
 }

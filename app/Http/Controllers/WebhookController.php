@@ -4,8 +4,6 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use App\Jobs\ProcessFacebookEvent;
-use App\Jobs\FacebookWebhookHandler;
 use App\Services\FacebookService;
 
 class WebhookController extends Controller
@@ -24,19 +22,32 @@ class WebhookController extends Controller
 
     public function handle(Request $r, FacebookService $fb)
     {
-        $signature = $r->header('X-Hub-Signature-256');
-        $payload = $r->getContent();
+        try {
+            $signature = $r->header('X-Hub-Signature-256');
+            $payload   = $r->getContent();
 
-        $secret = env('FACEBOOK_APP_SECRET');
-        if ($secret && !$fb->verifySignature($payload, $signature)) {
-            Log::warning('Invalid FB signature');
-            return response()->json(['ok'=>false], 403);
+            $secret = env('FACEBOOK_APP_SECRET');
+            if ($secret && !$fb->verifySignature($payload, $signature)) {
+                Log::warning('FB webhook: invalid signature');
+                return response()->json(['ok'=>false], 403);
+            }
+
+            $data = $r->all();
+
+            // Chỉ dispatch nếu job tồn tại (tránh fatal -> 500)
+            if (class_exists(\App\Jobs\FacebookWebhookHandler::class)) {
+                \App\Jobs\FacebookWebhookHandler::dispatch($data)->onQueue('fb-webhook');
+            } elseif (class_exists(\App\Jobs\ProcessFacebookEvent::class)) {
+                \App\Jobs\ProcessFacebookEvent::dispatch($data)->onQueue('fb-webhook');
+            } else {
+                Log::info('FB webhook received (no handler job found yet)', ['keys'=>array_keys($data ?: [])]);
+            }
+
+            return response()->json(['ok'=>true], 200);
+        } catch (\Throwable $e) {
+            Log::error('FB webhook error: '.$e->getMessage(), ['trace'=>$e->getTraceAsString()]);
+            // Luôn trả 200 để Facebook không retry liên tục
+            return response()->json(['ok'=>false, 'note'=>'captured'], 200);
         }
-
-        $data = $r->all();
-        ProcessFacebookEvent::dispatch($data)->onQueue('fb-webhook');
-        FacebookWebhookHandler::dispatch($data)->onQueue('fb-webhook');
-
-        return response()->json(['ok'=>true]);
     }
 }
