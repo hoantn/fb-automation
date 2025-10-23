@@ -11,20 +11,7 @@ use App\Models\Customer;
 class FacebookService
 {
     protected string $graphBase = 'https://graph.facebook.com/v17.0';
-	
-	public function subscribePage(string $metaPageId, string $pageAccessToken): bool
-    {
-        if (!$metaPageId || !$pageAccessToken) return false;
 
-        $resp = Http::asForm()
-            ->withToken($pageAccessToken)
-            ->post("{$this->graph}/{$metaPageId}/subscribed_apps", [
-                // Những field đã dùng ở step 2
-                'subscribed_fields' => 'messages,messaging_postbacks,message_deliveries,message_reads',
-            ]);
-
-        return $resp->ok();
-    }
     public function verifySignature(string $payload, ?string $headerSignature): bool
     {
         $secret = env('FACEBOOK_APP_SECRET');
@@ -68,17 +55,27 @@ class FacebookService
 
     public function subscribePageEvents(Page $page): bool
     {
-        if (!$page->access_token || !$page->meta_page_id) return false;
-        $resp = Http::asForm()->withToken($page->access_token)
-            ->post($this->graphBase.'/'.$page->meta_page_id.'/subscribed_apps', [
-                'subscribed_fields' => 'messages,messaging_postbacks,messaging_optins,message_deliveries,message_reads',
-            ]);
-        if (!$resp->ok()) {
-            Log::warning('FB subscribe fail', ['page'=>$page->id,'status'=>$resp->status(),'body'=>$resp->body()]);
+        if (!$page->access_token || !$page->meta_page_id) {
+            Log::warning('Subscribe skip: missing token or meta_page_id', ['page_id' => $page->id ?? null]);
+            return false;
         }
+
+        $resp = Http::asForm()
+            ->withToken($page->access_token)                    // LƯU Ý: token của PAGE
+            ->post($this->graphBase.'/'.$page->meta_page_id.'/subscribed_apps', [
+                'subscribed_fields' => 'messages,messaging_postbacks,message_deliveries,message_reads,messaging_optins',
+            ]);
+
+        if (!$resp->ok()) {
+            Log::warning('FB subscribe fail', [
+                'page'   => $page->id,
+                'status' => $resp->status(),
+                'body'   => $resp->body(),
+            ]);
+        }
+
         return $resp->ok();
     }
-
     public function ensurePageSubscription(Page $page): bool
     {
         if ($this->isPageSubscribed($page)) return true;

@@ -36,7 +36,8 @@ class PageConnectController extends Controller
             'issued_by_user_id' => Auth::id(),
             'status'            => 'active',
         ]);
-
-        return redirect('/')->with('status', 'Page connected!');
+		// === AUTO-SUBSCRIBE NGAY TẠI ĐÂY ===
+		app(FacebookService::class)->subscribePageEvents($page);
+        return redirect('/')->with('status', 'Đã liên kết & subscribe!!');
     }
 }
