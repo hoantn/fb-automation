@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
 class Setting extends Model
 {
     protected $table = 'settings';
-    protected $fillable = ['key','value','value_json'];
+    protected $fillable = ['key','value','value_json','type'];
     public $timestamps = false;
 
     public static function get(string $key, $default = null)
@@ -30,8 +30,13 @@ class Setting extends Model
     {
         $hasValue     = Schema::hasColumn('settings', 'value');
         $hasValueJson = Schema::hasColumn('settings', 'value_json');
+        $hasType      = Schema::hasColumn('settings', 'type');
 
         $payload = [];
+
+        // Decide type
+        $isScalar = is_bool($value) || is_scalar($value);
+        $type = $isScalar ? 'string' : 'json';
 
         if ($hasValue) {
             if (is_bool($value))        $payload['value'] = $value ? '1' : '0';
@@ -41,11 +46,15 @@ class Setting extends Model
 
         if ($hasValueJson) {
             $json = json_encode($value, JSON_UNESCAPED_UNICODE);
-            if ($json === null) $json = '""'; // tránh NOT NULL
+            if ($json === null) $json = '""'; // avoid NOT NULL
             $payload['value_json'] = $json;
         }
 
-        if (!$payload) { // bảng rất cũ: fallback
+        if ($hasType) {
+            $payload['type'] = $type;
+        }
+
+        if (!$payload) { // very old schema fallback
             $payload['value'] = is_scalar($value) ? (string)$value : json_encode($value, JSON_UNESCAPED_UNICODE);
         }
 
