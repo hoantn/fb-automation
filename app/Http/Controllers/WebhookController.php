@@ -9,7 +9,7 @@ class WebhookController extends Controller
 {
     public function verify(Request $r)
     {
-        if ($r->get('hub_mode') === 'subscribe' or $r->get('hub.mode') === 'subscribe') {
+        if ($r->get('hub_mode') === 'subscribe' || $r->get('hub.mode') === 'subscribe') {
             return response($r->get('hub_challenge') ?? $r->get('hub.challenge'), 200);
         }
         return response('OK', 200);

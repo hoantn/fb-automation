@@ -19,9 +19,8 @@ final class ConfigResolver
                 ['scope_type' => 'global', 'id' => null],
             ];
             foreach ($order as $s) {
-                if ($s['scope_type'] !== 'global' && empty($s['id'])) {
-                    continue;
-                }
+                if ($s['scope_type'] !== 'global' && empty($s['id'])) continue;
+
                 $q = Setting::query()
                     ->where('key', $key)
                     ->where('scope_type', $s['scope_type'])
@@ -29,6 +28,7 @@ final class ConfigResolver
                     ->where('is_active', true)
                     ->orderByDesc('version')
                     ->first();
+
                 if ($q) return $this->cast($q->type, $q->value_json);
             }
             return $default;

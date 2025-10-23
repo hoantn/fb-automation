@@ -30,12 +30,12 @@ class PageConnectController extends Controller
         $page->members()->syncWithoutDetaching([Auth::id() => ['role' => 'owner']]);
 
         $page->tokens()->create([
-            'access_token' => $data['access_token'],
-            'scopes' => ['pages_messaging','pages_read_engagement','pages_manage_metadata'],
+            'access_token'      => $data['access_token'],
+            'scopes'            => ['pages_messaging','pages_read_engagement','pages_manage_metadata'],
             'issued_by_user_id' => Auth::id(),
-            'status' => 'active',
+            'status'            => 'active',
         ]);
 
-        return redirect('/')->with('status','Page connected!');
+        return redirect('/')->with('status', 'Page connected!');
     }
 }

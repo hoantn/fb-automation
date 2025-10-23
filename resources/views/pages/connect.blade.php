@@ -17,7 +17,7 @@
 <div class="wrap">
     <h2>Chọn Page để kết nối</h2>
     @if(!count($pages))
-        <p>Không tìm thấy Page. Hãy đảm bảo bạn đã đăng nhập Facebook SSO và app có quyền <code>pages_show_list</code>.</p>
+        <p>Không tìm thấy Page. Hãy đảm bảo app đã được cấp quyền <code>pages_show_list</code>.</p>
     @endif
     @foreach($pages as $p)
         <div class="card flex">
