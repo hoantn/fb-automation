@@ -14,15 +14,11 @@ echo [2/4] Starting Laravel Queue Worker...
 start "Queue Worker" cmd /k "D:\xampp\php\php.exe artisan queue:work --queue=fb-send,fb-webhook,broadcast"
 
 timeout /t 3 >nul
-echo [3/4] Starting Realtime WebSocket Server...
-start "Realtime Server" cmd /k "D:\xampp\php\php.exe artisan websockets:serve"
-
-timeout /t 3 >nul
-echo [4/4] Starting Ngrok Tunnel...
+echo [3/4] Starting Ngrok Tunnel...
 start "Ngrok" cmd /k ngrok http 8000
 
 timeout /t 2 >nul
-start http://localhost:8000/admin/dashboard
+start http://localhost:8000/admin/login
 
 echo.
 echo ✅ All services started successfully!

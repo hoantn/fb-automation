@@ -1,0 +1,4 @@
+body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial}
+.card{border-radius:12px}
+.navbar-brand{letter-spacing:.3px}
+.table td,.table th{vertical-align:middle}
