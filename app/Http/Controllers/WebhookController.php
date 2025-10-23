@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Jobs\ProcessFacebookEvent;
+use App\Jobs\FacebookWebhookHandler;
 use App\Services\FacebookService;
 
 class WebhookController extends Controller
@@ -34,6 +35,8 @@ class WebhookController extends Controller
 
         $data = $r->all();
         ProcessFacebookEvent::dispatch($data)->onQueue('fb-webhook');
+        FacebookWebhookHandler::dispatch($data)->onQueue('fb-webhook');
+
         return response()->json(['ok'=>true]);
     }
 }

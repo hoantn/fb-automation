@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades.Http;
 use App\Models\{User, Page};
 
 class FacebookService
