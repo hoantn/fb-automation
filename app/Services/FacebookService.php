@@ -4,32 +4,28 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use App\Models\User;
 use App\Models\Page;
 use App\Models\Customer;
+use App\Models\PageToken;
 
 /**
- * FacebookService
+ * FacebookService – GIỮ NGUYÊN interface Step 2
+ * - listManagedPages(User $user): array
+ * - subscribePageEvents(Page $page): bool
+ * - sendMessage(Page $page, Customer $customer, string $text): bool
+ * - verifySignature(string $payload, ?string $headerSignature): bool
  *
- * Nguyên tắc:
- * - KHÔNG đổi interface đã dùng ở Step 2.
- * - Rõ ràng USER token vs PAGE token:
- *   + /me/accounts => USER token
- *   + /{page_id}/subscribed_apps, /me/messages => PAGE token
- * - Không throw exception ra controller; log đầy đủ để debug.
+ * Bổ sung helper an toàn:
+ * - ensurePageToken(Page $page, string $accessToken, ...): bool
+ *   (ghi kép token vào pages + page_tokens nếu có)
  */
 class FacebookService
 {
-    /**
-     * Kiến nghị pin version Graph API để tránh thay đổi đột ngột.
-     * Có thể đưa vào config nếu cần.
-     */
     protected string $graphBase = 'https://graph.facebook.com/v17.0';
 
-    /**
-     * Dùng USER token để liệt kê các Page mà user quản lý.
-     * Trả về mảng các page gồm id, name, access_token (page).
-     */
+    /** USER token -> /me/accounts */
     public function listManagedPages(User $user): array
     {
         $userToken = $user->facebook_token ?? $user->token ?? null;
@@ -38,10 +34,9 @@ class FacebookService
             return [];
         }
 
-        $resp = Http::withToken($userToken)
-            ->get($this->graphBase . '/me/accounts', [
-                'fields' => 'id,name,category,access_token',
-            ]);
+        $resp = Http::withToken($userToken)->get($this->graphBase . '/me/accounts', [
+            'fields' => 'id,name,category,access_token',
+        ]);
 
         if (!$resp->ok()) {
             Log::error('FB list pages fail', [
@@ -57,19 +52,79 @@ class FacebookService
     }
 
     /**
-     * Dùng PAGE token để đăng ký webhook events cho 1 Page.
-     * Chỉ gọi sau khi đã lưu meta_page_id + access_token vào DB.
+     * GHI KÉP TOKEN:
+     *  - pages.access_token (nếu có cột)
+     *  - page_tokens (nếu có bảng)
+     *  Không throw – chỉ log & trả bool.
      */
+    public function ensurePageToken(
+        Page $page,
+        string $accessToken,
+        ?array $scopes = null,
+        ?int $issuedByUserId = null,
+        ?string $status = 'active',
+        $expiresAt = null // string|\Carbon\Carbon|null
+    ): bool {
+        $ok = true;
+
+        // 1) pages.access_token
+        try {
+            if (Schema::hasColumn('pages', 'access_token')) {
+                if (!$page->access_token || $page->access_token !== $accessToken) {
+                    $page->access_token = $accessToken;
+                    $page->save();
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('ensurePageToken: cannot update pages.access_token', [
+                'page_id_db' => $page->id ?? null,
+                'err' => $e->getMessage(),
+            ]);
+            $ok = false;
+        }
+
+        // 2) page_tokens (nếu có)
+        try {
+            if (Schema::hasTable('page_tokens')) {
+                $payload = ['access_token' => $accessToken];
+
+                if (Schema::hasColumn('page_tokens', 'scopes')) {
+                    $payload['scopes'] = is_array($scopes) ? json_encode($scopes) : ($scopes ?? null);
+                }
+                if (Schema::hasColumn('page_tokens', 'issued_by_user_id')) {
+                    $payload['issued_by_user_id'] = $issuedByUserId;
+                }
+                if (Schema::hasColumn('page_tokens', 'status')) {
+                    $payload['status'] = $status;
+                }
+                if (Schema::hasColumn('page_tokens', 'expires_at')) {
+                    $payload['expires_at'] = $expiresAt;
+                }
+
+                PageToken::updateOrCreate(['page_id' => $page->id], $payload);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('ensurePageToken: cannot upsert page_tokens', [
+                'page_id_db' => $page->id ?? null,
+                'err' => $e->getMessage(),
+            ]);
+            $ok = false;
+        }
+
+        return $ok;
+    }
+
+    /** PAGE token -> /{page_id}/subscribed_apps */
     public function subscribePageEvents(Page $page): bool
     {
-        $pageId = $page->meta_page_id ?? $page->page_id ?? null;
+        $pageId    = $page->meta_page_id ?? $page->page_id ?? null;
         $pageToken = $page->access_token ?? $page->token ?? null;
 
         if (!$pageId || !$pageToken) {
             Log::warning('subscribePageEvents: missing pageId or pageToken', [
-                'page_id_db' => $page->id ?? null,
+                'page_id_db'   => $page->id ?? null,
                 'meta_page_id' => $page->meta_page_id ?? null,
-                'access_token' => $page->access_token ? '***' : null,
+                'has_token'    => (bool) $pageToken,
             ]);
             return false;
         }
@@ -77,28 +132,32 @@ class FacebookService
         $resp = Http::asForm()
             ->withToken($pageToken)
             ->post($this->graphBase . '/' . $pageId . '/subscribed_apps', [
-                'subscribed_fields' => 'messages,messaging_postbacks,message_deliveries,message_reads,messaging_optins',
+                'subscribed_fields' => implode(',', [
+                    'messages',
+                    'messaging_postbacks',
+                    'message_deliveries',
+                    'message_reads',
+                    'messaging_optins',
+                ]),
             ]);
 
         if (!$resp->ok()) {
             Log::error('FB subscribe fail', [
-                'page_id_db'   => $page->id ?? null,
-                'graph_page_id'=> $pageId,
-                'status'       => $resp->status(),
-                'body'         => $resp->body(),
+                'page_id_db'    => $page->id ?? null,
+                'graph_page_id' => $pageId,
+                'status'        => $resp->status(),
+                'body'          => $resp->body(),
             ]);
         }
 
         return $resp->ok();
     }
 
-    /**
-     * Gửi tin nhắn từ Page tới Customer (PSID) – dùng PAGE token.
-     */
+    /** PAGE token -> /me/messages */
     public function sendMessage(Page $page, Customer $customer, string $text): bool
     {
         $pageToken = $page->access_token ?? $page->token ?? null;
-        $psid = $customer->psid ?? null;
+        $psid      = $customer->psid ?? null;
 
         if (!$pageToken || !$psid || $text === '') {
             Log::warning('sendMessage: missing token/psid/text', [
@@ -127,14 +186,11 @@ class FacebookService
         return $resp->ok();
     }
 
-    /**
-     * Verify X-Hub-Signature-256 cho webhook (nếu bạn bật verify).
-     * Dev có thể để FACEBOOK_APP_SECRET rỗng -> bỏ qua verify.
-     */
+    /** Verify X-Hub-Signature-256; dev có thể để trống SECRET để skip */
     public function verifySignature(string $payload, ?string $headerSignature): bool
     {
         $secret = env('FACEBOOK_APP_SECRET');
-        if (!$secret) return true; // Dev mode
+        if (!$secret) return true; // dev mode
 
         if (!$headerSignature || !str_starts_with($headerSignature, 'sha256=')) {
             return false;
