@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Page;
+use App\Services\FacebookService;
 
 class PageConnectController extends Controller
 {
