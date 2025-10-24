@@ -8,54 +8,48 @@ use Illuminate\Support\Facades\Schema;
 class Setting extends Model
 {
     protected $table = 'settings';
+    protected $fillable = ['key', 'type', 'value', 'value_json'];
     public $timestamps = true;
 
-    // Cho phép cả 2 cột để tương thích 2 schema
-    protected $fillable = ['key', 'value', 'value_json'];
+    protected static function detectType($v): string
+    {
+        if (is_bool($v)) return 'bool';
+        if (is_int($v)) return 'int';
+        if (is_float($v)) return 'float';
+        if (is_array($v) || is_object($v)) return 'json';
+        return 'string';
+    }
 
-    /**
-     * Lấy setting theo key. Tự nhận biết cột đang dùng.
-     */
     public static function get(string $key, $default = null)
     {
         $row = static::where('key', $key)->first();
-        if (!$row) {
-            return $default;
+        if (!$row) return $default;
+
+        if (Schema::hasColumn('settings', 'value_json') && !is_null($row->value_json)) {
+            $decoded = json_decode($row->value_json, true);
+            if (json_last_error() === JSON_ERROR_NONE) return $decoded;
         }
 
-        // Ưu tiên value_json nếu có
-        if (Schema::hasColumn('settings', 'value_json')) {
-            $raw = $row->value_json;
-        } else {
-            $raw = $row->value;
+        if (!is_null($row->value) && is_string($row->value)) {
+            $decoded = json_decode($row->value, true);
+            if (json_last_error() === JSON_ERROR_NONE) return $decoded;
         }
 
-        if (is_string($raw)) {
-            $decoded = json_decode($raw, true);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                return $decoded;
-            }
-        }
-        return $raw ?? $default;
+        return $row->value ?? $default;
     }
 
-    /**
-     * Ghi setting theo key. Tự nhận biết cột đang dùng (value / value_json).
-     */
     public static function set(string $key, $value): void
     {
-        $payload = [];
+        $payload = [
+            'type'       => static::detectType($value),
+            'value'      => null,
+            'value_json' => null,
+        ];
 
-        if (Schema::hasColumn('settings', 'value_json')) {
-            $payload['value_json'] = is_string($value)
-                ? $value
-                : json_encode($value, JSON_UNESCAPED_UNICODE);
-        }
-
-        if (Schema::hasColumn('settings', 'value')) {
-            $payload['value'] = (is_array($value) || is_object($value))
-                ? json_encode($value, JSON_UNESCAPED_UNICODE)
-                : $value;
+        if (is_array($value) || is_object($value)) {
+            $payload['value_json'] = json_encode($value, JSON_UNESCAPED_UNICODE);
+        } else {
+            $payload['value'] = is_null($value) ? null : (string) $value;
         }
 
         static::updateOrCreate(['key' => $key], $payload);

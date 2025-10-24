@@ -1,55 +1,121 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
-use App\Http\Controllers\{WebhookController, InboxController, HomeController, FacebookAuthController, PageConnectController};
-use App\Http\Controllers\Admin\{AuthController, DashboardController, PageController as AdminPageController, MessageController as AdminMessageController, BroadcastController as AdminBroadcastController, SettingController as AdminSettingController};
-use App\Models\Page;
 
-// Home
+/**
+ * ===== Controllers (khớp cấu trúc thường dùng trong repo của bạn) =====
+ * Nếu tên/namespace khác, chỉnh lại cho đúng.
+ */
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\Auth\FacebookAuthController;
+use App\Http\Controllers\Webhook\FacebookWebhookController;
+use App\Http\Controllers\PageConnectController;
+use App\Http\Controllers\InboxController;
+
+// Admin
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\SettingController as AdminSettingController;
+use App\Http\Controllers\Admin\PageController as AdminPageController;
+use App\Http\Controllers\Admin\MessageController as AdminMessageController;
+use App\Http\Controllers\Admin\BroadcastController as AdminBroadcastController;
+
+/*
+|--------------------------------------------------------------------------
+| Healthcheck / Utility
+|--------------------------------------------------------------------------
+*/
+Route::get('/health', fn () => response()->json(['ok' => true]));
+
+/*
+|--------------------------------------------------------------------------
+| Home (Dashboard người dùng)
+|--------------------------------------------------------------------------
+*/
 Route::get('/', [HomeController::class, 'index'])->name('home');
-Route::post('/logout', [HomeController::class, 'logout'])->name('logout');
 
-// Auth Facebook (Step 1)
-Route::get('/auth/facebook/redirect', [FacebookAuthController::class,'redirect'])->name('fb.redirect');
-Route::get('/auth/facebook/callback', [FacebookAuthController::class,'callback'])->name('fb.callback');
+/*
+|--------------------------------------------------------------------------
+| Auth - Facebook SSO (Socialite)
+|--------------------------------------------------------------------------
+| - /auth/facebook/redirect: chuyển hướng đến FB
+| - /auth/facebook/callback: nhận token user, tạo/cập nhật user
+*/
+Route::get('/auth/facebook/redirect', [FacebookAuthController::class, 'redirect'])
+    ->name('fb.redirect');
 
-// Connect Page (Step 1)
-Route::middleware(['web','auth'])->group(function () {
-    Route::get('/pages/connect', [PageConnectController::class,'listPages'])->name('pages.connect');
-    Route::post('/pages/connect', [PageConnectController::class,'connect'])->name('pages.connect.post');
+Route::get('/auth/facebook/callback', [FacebookAuthController::class, 'callback'])
+    ->name('fb.callback');
 
-    // Inbox (Step 2)
-    Route::get('/{page}/inbox', [InboxController::class,'index'])->whereNumber('page');
-    Route::get('/{page}/inbox/{customer}', [InboxController::class,'show'])->whereNumber(['page','customer']);
-    Route::post('/{page}/inbox/{customer}/send', [InboxController::class,'send'])->whereNumber(['page','customer']);
+/*
+|--------------------------------------------------------------------------
+| Webhook Facebook (verify + receive)
+|--------------------------------------------------------------------------
+| GET  /webhook/facebook  -> verify (hub.mode, hub.verify_token, hub.challenge)
+| POST /webhook/facebook  -> nhận event (messages, messaging_postbacks,...)
+|
+| Lưu ý: đã loại trừ CSRF cho POST này trong VerifyCsrfToken.
+*/
+Route::get('/webhook/facebook',  [FacebookWebhookController::class, 'verify'])
+    ->name('fb.webhook.verify');
+Route::post('/webhook/facebook', [FacebookWebhookController::class, 'receive'])
+    ->name('fb.webhook.receive');
 
-    // Subscribe helper
-    Route::post('/{page}/subscribe', function (Page $page) {
-        $ok = app(\App\Services\FacebookService::class)->subscribePageEvents($page);
-        return back()->with('status', $ok ? 'Subscribed!' : 'Subscribe failed');
-    })->whereNumber('page');
+/*
+|--------------------------------------------------------------------------
+| Pages Connect (liệt kê & kết nối Page)
+|--------------------------------------------------------------------------
+| GET  /pages/connect  -> listManagedPages() (gọi Graph bằng user token)
+| POST /pages/connect  -> lưu Page + PageToken + auto-subscribe Page events
+*/
+Route::middleware(['web', 'auth'])->group(function () {
+    Route::get('/pages/connect',  [PageConnectController::class, 'listPages'])
+        ->name('pages.connect');
+    Route::post('/pages/connect', [PageConnectController::class, 'connect'])
+        ->name('pages.connect.post');
 });
 
-// Webhook (Step 2)
-Route::get('/webhook/facebook', [WebhookController::class,'verify']);
-Route::post('/webhook/facebook', [WebhookController::class,'handle'])->withoutMiddleware([VerifyCsrfToken::class]);
+/*
+|--------------------------------------------------------------------------
+| Inbox (xem hội thoại & gửi tin)
+|--------------------------------------------------------------------------
+| GET  /{page}/inbox         -> danh sách hội thoại của page
+| POST /{page}/inbox/send    -> gửi tin nhắn (dùng page access token)
+|
+| {page} hỗ trợ Route Model Binding: App\Models\Page
+*/
+Route::middleware(['web', 'auth'])->group(function () {
+    Route::get('/{page}/inbox',        [InboxController::class, 'show'])
+        ->whereNumber('page')
+        ->name('inbox.show');
+    Route::post('/{page}/inbox/send',  [InboxController::class, 'send'])
+        ->whereNumber('page')
+        ->name('inbox.send');
+});
 
-// Admin (Step 3)
-Route::get('/admin/login', [AuthController::class,'loginForm']);
-Route::post('/admin/login', [AuthController::class,'login']);
-Route::get('/admin/logout', [AuthController::class,'logout']);
+/*
+|--------------------------------------------------------------------------
+| Admin
+|--------------------------------------------------------------------------
+| - /admin/dashboard
+| - /admin/settings (GET/PUT)
+| - các trang quản trị khác (pages/messages/broadcasts)
+*/
+Route::prefix('admin')->middleware(['web', 'auth'])->group(function () {
+    // Dashboard tổng quan
+    Route::get('/dashboard', [AdminDashboardController::class, 'index'])
+        ->name('admin.dashboard');
 
-Route::middleware([\App\Http\Middleware\AdminMiddleware::class])->prefix('admin')->group(function () {
-    Route::get('/dashboard', [DashboardController::class,'index']);
-    Route::get('/api/stats', [DashboardController::class,'stats']);
+    // Settings
+    Route::get('/settings', [AdminSettingController::class, 'index'])
+        ->name('admin.settings.index');
+    Route::put('/settings', [AdminSettingController::class, 'update'])
+        ->name('admin.settings.update');
 
-    Route::get('/pages', [AdminPageController::class,'index']);
-    Route::get('/messages', [AdminMessageController::class,'index']);
-
-    Route::get('/broadcasts', [AdminBroadcastController::class,'index']);
-    Route::post('/broadcasts/send', [AdminBroadcastController::class,'send']);
-
-    Route::get('/settings', [AdminSettingController::class,'index']);
-    Route::post('/settings', [AdminSettingController::class,'update']);
+    // Tuỳ chọn: quản trị Page / Messages / Broadcasts (nếu có)
+    Route::get('/pages', [AdminPageController::class, 'index'])
+        ->name('admin.pages.index');
+    Route::get('/messages', [AdminMessageController::class, 'index'])
+        ->name('admin.messages.index');
+    Route::get('/broadcasts', [AdminBroadcastController::class, 'index'])
+        ->name('admin.broadcasts.index');
 });
