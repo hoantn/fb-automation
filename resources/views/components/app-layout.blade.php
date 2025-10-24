@@ -1,4 +1,3 @@
-{{-- resources/views/components/app-layout.blade.php --}}
 <!doctype html>
 <html lang="vi">
 <head>
@@ -6,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ $title ?? 'FB Automation' }}</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
     .card{background:#fff;border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,.05);border:1px solid rgba(2,6,23,.06)}

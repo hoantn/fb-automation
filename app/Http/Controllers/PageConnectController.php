@@ -2,68 +2,61 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Page;
-use App\Services\FacebookService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Arr;
+use App\Services\FacebookService;
+use App\Models\Page;
+use App\Models\PageToken;
+use Illuminate\Support\Facades\Schema;
 
 class PageConnectController extends Controller
 {
     public function listPages(FacebookService $fb)
     {
-        $user  = Auth::user();
+        $user = Auth::user();
         $pages = $fb->listManagedPages($user);
-
         return view('pages.connect', compact('pages'));
     }
 
     public function connect(Request $request, FacebookService $fb)
     {
-        $v = Validator::make($request->all(), [
-            'meta_page_id'  => 'required|string',
-            'name'          => 'required|string',
-            'access_token'  => 'nullable|string',
+        $data = $request->validate([
+            'page_id'           => 'required|string',
+            'name'              => 'nullable|string',
+            'access_token'      => 'nullable|string',
+            'scopes'            => 'nullable|string',
+            'issued_by_user_id' => 'nullable|string',
+            'status'            => 'nullable|string',
         ]);
-        $v->validate();
 
         $page = Page::updateOrCreate(
-            ['meta_page_id' => $request->input('meta_page_id')],
+            ['meta_page_id' => $data['page_id']],
             [
-                'name'         => $request->input('name'),
-                'access_token' => $request->input('access_token') ?: null,
+                'name' => $data['name'] ?? $data['page_id'],
+                'access_token' => $data['access_token'] ?? null,
             ]
         );
 
-        $token = $request->input('access_token');
-        if (!$token) {
-            $apiPages = collect($fb->listManagedPages(Auth::user()))->keyBy('id');
-            if ($apiPages->has($page->meta_page_id)) {
-                $token = Arr::get($apiPages[$page->meta_page_id], 'access_token');
-            }
-        }
-
-        if ($token) {
-            $fb->ensurePageToken(
-                $page,
-                (string)$token,
-                scopes: null,
-                issuedByUserId: Auth::id(),
-                status: 'active',
-                expiresAt: null
-            );
-        }
-
-        if (method_exists(Auth::user(), 'pages')) {
-            Auth::user()->pages()->syncWithoutDetaching([
-                $page->id => ['role' => 'owner']
+        if (Schema::hasTable('page_tokens') && !empty($data['access_token'])) {
+            PageToken::create([
+                'page_id' => $page->id,
+                'access_token' => $data['access_token'],
+                'scopes' => $data['scopes'] ?? null,
+                'issued_by_user_id' => $data['issued_by_user_id'] ?? null,
+                'status' => $data['status'] ?? 'active',
             ]);
         }
 
-        $ok = $fb->subscribePageEvents($page);
+        if (Auth::check() && method_exists($page, 'users')) {
+            $page->users()->syncWithoutDetaching([Auth::id() => ['role' => 'owner']]);
+        }
 
-        return redirect()->route('home')
-            ->with('status', $ok ? 'Đã liên kết & subscribe!' : 'Đã lưu page, nhưng subscribe thất bại. Vui lòng kiểm tra quyền/token.');
+        try {
+            $fb->subscribePageEvents($page);
+        } catch (\Throwable $e) {
+            \Log::warning($e->getMessage());
+        }
+
+        return redirect()->route('home')->with('success', 'Kết nối Page thành công!');
     }
 }
