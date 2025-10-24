@@ -10,22 +10,10 @@ use App\Models\Page;
 use App\Models\Customer;
 use App\Models\PageToken;
 
-/**
- * FacebookService – GIỮ NGUYÊN interface Step 2
- * - listManagedPages(User $user): array
- * - subscribePageEvents(Page $page): bool
- * - sendMessage(Page $page, Customer $customer, string $text): bool
- * - verifySignature(string $payload, ?string $headerSignature): bool
- *
- * Bổ sung helper an toàn:
- * - ensurePageToken(Page $page, string $accessToken, ...): bool
- *   (ghi kép token vào pages + page_tokens nếu có)
- */
 class FacebookService
 {
     protected string $graphBase = 'https://graph.facebook.com/v17.0';
 
-    /** USER token -> /me/accounts */
     public function listManagedPages(User $user): array
     {
         $userToken = $user->facebook_token ?? $user->token ?? null;
@@ -51,23 +39,16 @@ class FacebookService
         return is_array($data) ? $data : [];
     }
 
-    /**
-     * GHI KÉP TOKEN:
-     *  - pages.access_token (nếu có cột)
-     *  - page_tokens (nếu có bảng)
-     *  Không throw – chỉ log & trả bool.
-     */
     public function ensurePageToken(
         Page $page,
         string $accessToken,
         ?array $scopes = null,
         ?int $issuedByUserId = null,
         ?string $status = 'active',
-        $expiresAt = null // string|\Carbon\Carbon|null
+        $expiresAt = null
     ): bool {
         $ok = true;
 
-        // 1) pages.access_token
         try {
             if (Schema::hasColumn('pages', 'access_token')) {
                 if (!$page->access_token || $page->access_token !== $accessToken) {
@@ -83,11 +64,9 @@ class FacebookService
             $ok = false;
         }
 
-        // 2) page_tokens (nếu có)
         try {
             if (Schema::hasTable('page_tokens')) {
                 $payload = ['access_token' => $accessToken];
-
                 if (Schema::hasColumn('page_tokens', 'scopes')) {
                     $payload['scopes'] = is_array($scopes) ? json_encode($scopes) : ($scopes ?? null);
                 }
@@ -100,7 +79,6 @@ class FacebookService
                 if (Schema::hasColumn('page_tokens', 'expires_at')) {
                     $payload['expires_at'] = $expiresAt;
                 }
-
                 PageToken::updateOrCreate(['page_id' => $page->id], $payload);
             }
         } catch (\Throwable $e) {
@@ -114,7 +92,6 @@ class FacebookService
         return $ok;
     }
 
-    /** PAGE token -> /{page_id}/subscribed_apps */
     public function subscribePageEvents(Page $page): bool
     {
         $pageId    = $page->meta_page_id ?? $page->page_id ?? null;
@@ -124,7 +101,7 @@ class FacebookService
             Log::warning('subscribePageEvents: missing pageId or pageToken', [
                 'page_id_db'   => $page->id ?? null,
                 'meta_page_id' => $page->meta_page_id ?? null,
-                'has_token'    => (bool) $pageToken,
+                'has_token'    => (bool)$pageToken,
             ]);
             return false;
         }
@@ -153,7 +130,6 @@ class FacebookService
         return $resp->ok();
     }
 
-    /** PAGE token -> /me/messages */
     public function sendMessage(Page $page, Customer $customer, string $text): bool
     {
         $pageToken = $page->access_token ?? $page->token ?? null;
@@ -186,16 +162,13 @@ class FacebookService
         return $resp->ok();
     }
 
-    /** Verify X-Hub-Signature-256; dev có thể để trống SECRET để skip */
     public function verifySignature(string $payload, ?string $headerSignature): bool
     {
         $secret = env('FACEBOOK_APP_SECRET');
-        if (!$secret) return true; // dev mode
-
+        if (!$secret) return true;
         if (!$headerSignature || !str_starts_with($headerSignature, 'sha256=')) {
             return false;
         }
-
         $expected = 'sha256=' . hash_hmac('sha256', $payload, $secret);
         return hash_equals($expected, $headerSignature);
     }

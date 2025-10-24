@@ -6,21 +6,23 @@ use Illuminate\Database\Eloquent\Model;
 
 class Page extends Model
 {
-    protected $fillable = ['meta_page_id', 'name', 'meta'];
-    protected $casts = ['meta' => 'array'];
+    protected $table = 'pages';
 
-    public function members()
-    {
-        return $this->belongsToMany(User::class)->withPivot('role')->withTimestamps();
-    }
+    protected $fillable = [
+        'meta_page_id',
+        'name',
+        'access_token',
+        'meta',
+    ];
 
-    public function tokens()
-    {
-        return $this->hasMany(PageToken::class);
-    }
+    protected $casts = [
+        'meta' => 'array',
+    ];
 
-    public function activeToken()
+    public function users()
     {
-        return $this->tokens()->where('status', 'active')->latest()->first();
+        return $this->belongsToMany(User::class, 'page_user')
+            ->withPivot('role')
+            ->withTimestamps();
     }
 }

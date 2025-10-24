@@ -18,7 +18,7 @@ class PageToken extends Model
     ];
 
     protected $casts = [
-        'scopes'     => 'array',    // Laravel tự json_encode/json_decode
+        'scopes'     => 'array',
         'expires_at' => 'datetime',
     ];
 }

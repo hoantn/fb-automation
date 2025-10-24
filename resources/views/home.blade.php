@@ -1,118 +1,37 @@
-<!doctype html>
-<html lang="vi">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>FB Automation – Home</title>
-  <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial;margin:0;background:#fafafa}
-    .wrap{max-width:1000px;margin:30px auto;padding:0 16px}
-    .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
-    .card{background:#fff;border:1px solid #eee;border-radius:12px;padding:16px;margin:10px 0}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
-    .btn{display:inline-block;padding:10px 14px;border:1px solid #111;border-radius:8px;background:#111;color:#fff;text-decoration:none}
-    .btn.secondary{background:#fff;color:#111}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    code{background:#f4f4f4;padding:2px 6px;border-radius:6px}
-    table{width:100%;border-collapse:collapse}
-    th,td{border-bottom:1px solid #f0f0f0;padding:10px;text-align:left}
-    small.muted{color:#888}
-  </style>
-</head>
-<body>
-<div class="wrap">
-
-  <div class="head">
-    <h2>FB Automation · Home</h2>
-    <div class="row">
-      @if (session('status')) <small class="muted">{{ session('status') }}</small> @endif
-      @if($user)
-        <form method="post" action="{{ route('logout') }}">
-          @csrf
-          <button class="btn secondary" type="submit">Đăng xuất ({{ $user->name ?? 'User' }})</button>
-        </form>
-      @else
-        <a class="btn" href="{{ route('fb.redirect') }}">Đăng nhập Facebook</a>
-      @endif
-    </div>
+@extends('layouts.app')
+@section('title', 'FB Automation · Home')
+@section('content')
+<div class="mb-6 flex items-center justify-between">
+  <div><h1 class="text-xl font-semibold">Home</h1><p class="text-sm text-slate-500">Tổng quan & Pages đã liên kết</p></div>
+  <div class="flex gap-3">
+    <a href="{{ url('/auth/facebook/redirect') }}" class="inline-flex items-center rounded-lg bg-slate-800 px-3 py-2 text-sm font-medium text-white hover:bg-slate-900">Facebook SSO</a>
+    <a href="{{ url('/pages/connect') }}" class="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">Connect Page</a>
   </div>
-
-  <div class="grid">
-    <div class="card">
-      <h3>Quick Actions</h3>
-      <div class="row" style="margin-top:8px">
-        <a class="btn" href="{{ route('fb.redirect') }}">Facebook SSO</a>
-        @if($user)
-          <a class="btn secondary" href="{{ route('pages.connect') }}">Connect Page</a>
-        @endif
-      </div>
-      <p><small class="muted">Dùng để test đăng nhập và liên kết Page nhanh.</small></p>
-    </div>
-
-    <div class="card">
-      <h3>Config gợi ý</h3>
-      <table>
-        <tbody>
-          @foreach($configHints as $k => $v)
-            <tr><td>{{ $k }}</td><td><code>{{ is_string($v) ? $v : json_encode($v) }}</code></td></tr>
-          @endforeach
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>Pages đã liên kết</h3>
-    @if(!$user)
-      <p>Chưa đăng nhập. Bấm <a href="{{ route('fb.redirect') }}">Facebook SSO</a> trước.</p>
-    @else
-      @if(!$pages->count())
-        <p>Chưa có Page nào. Vào <a href="{{ route('pages.connect') }}">Connect Page</a> để liên kết.</p>
-      @else
-        <table>
-          <thead>
-            <tr>
-              <th>Tên Page</th>
-              <th>Meta Page ID</th>
-              <th>Token</th>
-              <th>Conversations</th>
-              <th>Last</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-          @foreach($pages as $p)
-            <tr>
-              <td>{{ $p['name'] }}</td>
-              <td><code>{{ $p['meta_page_id'] }}</code></td>
-              <td>{!! $p['has_token'] ? '<span style="color:green">OK</span>' : '<span style="color:#b00">Missing</span>' !!}</td>
-              <td>{{ $p['inbox_count'] }}</td>
-              <td>{{ $p['last_at'] ?? '—' }}</td>
-              <td class="row">
-                <a class="btn" href="/{{ $p['id'] }}/inbox">Inbox</a>
-                <form method="post" action="/{{ $p['id'] }}/subscribe">
-                  @csrf
-                  <button class="btn secondary" type="submit">Subscribe</button>
-                </form>
-              </td>
-            </tr>
-          @endforeach
-          </tbody>
-        </table>
-      @endif
-    @endif
-  </div>
-
-  <div class="card">
-    <h3>Ghi chú test nhanh</h3>
-    <ul>
-      <li>Webhook URL (GET/POST): <code>{{ url('/webhook/facebook') }}</code></li>
-      <li>Verify Token: đặt trong <code>.env</code> với key <code>WEBHOOK_VERIFY_TOKEN</code></li>
-      <li>Nhắn tin vào Page từ tài khoản khác &rarr; mở <code>/{page_id}/inbox</code> để xem.</li>
-      <li>Gửi trả lời tại trang hội thoại; worker: <code>php artisan queue:work --queue=fb-webhook,fb-send</code></li>
-    </ul>
-  </div>
-
 </div>
-</body>
-</html>
+<div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+  <div class="rounded-lg border bg-white p-4"><div class="text-xs uppercase text-slate-500">Pages</div><div class="mt-2 text-2xl font-semibold">{{ $pages->count() }}</div></div>
+  <div class="rounded-lg border bg-white p-4"><div class="text-xs uppercase text-slate-500">Today</div><div class="mt-2 text-2xl font-semibold">—</div></div>
+  <div class="rounded-lg border bg-white p-4"><div class="text-xs uppercase text-slate-500">Broadcasts</div><div class="mt-2 text-2xl font-semibold">—</div></div>
+  <div class="rounded-lg border bg-white p-4"><div class="text-xs uppercase text-slate-500">Worker</div><div class="mt-2 text-2xl font-semibold">fb-webhook / fb-send</div></div>
+</div>
+<div class="rounded-lg border bg-white">
+  <div class="border-b px-4 py-3 font-medium">Pages đã liên kết</div>
+  @if($pages->isEmpty())
+  <div class="px-4 py-6 text-sm text-slate-500">Chưa có Page nào. Vào <a href="{{ url('/pages/connect') }}" class="text-indigo-600 hover:underline">Connect Page</a> để liên kết.</div>
+  @else
+  <div class="divide-y">@foreach($pages as $p)<div class="px-4 py-4 flex items-center justify-between">
+    <div><div class="font-medium">{{ $p->name }}</div><div class="mt-1 text-xs text-slate-500">Meta Page ID: <span class="font-mono">{{ $p->meta_page_id ?? '—' }}</span><span class="mx-2">·</span>Token:@if($p->access_token)<span class="rounded bg-emerald-50 px-2 py-0.5 text-emerald-700">OK</span>@else<span class="rounded bg-amber-50 px-2 py-0.5 text-amber-700">Thiếu</span>@endif</div></div>
+    <div class="flex items-center gap-2"><a href="{{ url('/'.$p->id.'/inbox') }}" class="rounded-lg border px-3 py-1.5 text-sm hover:bg-slate-50">Inbox</a><a href="{{ url('/pages/connect') }}" class="rounded-lg border px-3 py-1.5 text-sm hover:bg-slate-50">Re-Connect</a></div>
+  </div>@endforeach</div>
+  @endif
+</div>
+<div class="mt-6 rounded-lg border bg-white p-4">
+  <div class="font-medium mb-2">Ghi chú test nhanh</div>
+  <ul class="list-disc pl-5 text-sm text-slate-600 space-y-1">
+    <li>Webhook URL (GET/POST): <code class="bg-slate-100 px-1 py-0.5 rounded">{{ url('/webhook/facebook') }}</code></li>
+    <li>Verify Token: đặt trong <code>.env</code> với key <code>WEBHOOK_VERIFY_TOKEN</code></li>
+    <li>Nhắn tin vào Page từ tài khoản khác → mở <code>/{page_id}/inbox</code> để xem.</li>
+    <li>Worker: <code>php artisan queue:work --queue=fb-webhook,fb-send</code></li>
+  </ul>
+</div>
+@endsection

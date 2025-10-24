@@ -11,7 +11,6 @@ use Illuminate\Support\Arr;
 
 class PageConnectController extends Controller
 {
-    /** Hiển thị list page từ /me/accounts */
     public function listPages(FacebookService $fb)
     {
         $user  = Auth::user();
@@ -20,7 +19,6 @@ class PageConnectController extends Controller
         return view('pages.connect', compact('pages'));
     }
 
-    /** Nhận POST connect từ UI: meta_page_id, name, access_token (optional) */
     public function connect(Request $request, FacebookService $fb)
     {
         $v = Validator::make($request->all(), [
@@ -30,7 +28,6 @@ class PageConnectController extends Controller
         ]);
         $v->validate();
 
-        // Lưu/ cập nhật Page
         $page = Page::updateOrCreate(
             ['meta_page_id' => $request->input('meta_page_id')],
             [
@@ -39,7 +36,6 @@ class PageConnectController extends Controller
             ]
         );
 
-        // Token ưu tiên: từ request; nếu không có -> lấy lại từ /me/accounts
         $token = $request->input('access_token');
         if (!$token) {
             $apiPages = collect($fb->listManagedPages(Auth::user()))->keyBy('id');
@@ -48,23 +44,26 @@ class PageConnectController extends Controller
             }
         }
 
-        // Ghi kép token (pages + page_tokens)
         if ($token) {
             $fb->ensurePageToken(
                 $page,
-                (string) $token,
-                scopes: null,              // /me/accounts không trả scopes – để null
+                (string)$token,
+                scopes: null,
                 issuedByUserId: Auth::id(),
                 status: 'active',
                 expiresAt: null
             );
         }
 
-        // Auto subscribe
+        if (method_exists(Auth::user(), 'pages')) {
+            Auth::user()->pages()->syncWithoutDetaching([
+                $page->id => ['role' => 'owner']
+            ]);
+        }
+
         $ok = $fb->subscribePageEvents($page);
 
-        return redirect()
-            ->route('pages.connect')
-            ->with('status', $ok ? 'Đã liên kết & subscribe!' : 'Đã lưu page, nhưng subscribe thất bại. Vui lòng kiểm tra quyền hoặc token.');
+        return redirect()->route('home')
+            ->with('status', $ok ? 'Đã liên kết & subscribe!' : 'Đã lưu page, nhưng subscribe thất bại. Vui lòng kiểm tra quyền/token.');
     }
 }
