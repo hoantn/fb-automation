@@ -11,7 +11,6 @@ use App\Http\Controllers\Auth\FacebookAuthController;
 use App\Http\Controllers\Webhook\FacebookWebhookController;
 use App\Http\Controllers\PageConnectController;
 use App\Http\Controllers\InboxController;
-use App\Http\Controllers\AuthController;
 
 // Admin
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
@@ -34,7 +33,9 @@ Route::get('/health', fn () => response()->json(['ok' => true]));
 */
 Route::get('/', [HomeController::class, 'index'])->name('home');
 // Login route cho middleware auth
-Route::get('/login', [AuthController::class, 'redirect'])->name('login');
+Route::get('/login', function () {
+    return redirect('/auth/facebook/redirect');
+})->name('login');
 
 /*
 |--------------------------------------------------------------------------
