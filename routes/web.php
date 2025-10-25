@@ -11,6 +11,7 @@ use App\Http\Controllers\Auth\FacebookAuthController;
 use App\Http\Controllers\Webhook\FacebookWebhookController;
 use App\Http\Controllers\PageConnectController;
 use App\Http\Controllers\InboxController;
+use App\Http\Controllers\Admin\MessageSendController;
 
 // Admin
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
@@ -119,3 +120,9 @@ Route::prefix('admin')->middleware(['web', 'auth'])->group(function () {
     Route::get('/broadcasts', [AdminBroadcastController::class, 'index'])
         ->name('admin.broadcasts.index');
 });
+Route::middleware(['web','auth']) // hoặc middleware bạn đang dùng cho admin
+    ->prefix('admin')
+    ->group(function () {
+        Route::post('/inbox/reply', MessageSendController::class)
+            ->name('admin.inbox.reply');
+    });
