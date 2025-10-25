@@ -4,48 +4,40 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use App\Services\FacebookService;
 
 class WebhookController extends Controller
 {
-    public function verify(Request $r)
+    /**
+     * Một endpoint cho cả GET (verify) và POST (event).
+     * Route: Route::match(['GET','POST'], '/webhook/facebook', [WebhookController::class, 'handle']);
+     */
+    public function handle(Request $request)
     {
-        $token = env('WEBHOOK_VERIFY_TOKEN');
-        if (($r->get('hub_mode') ?? $r->get('hub.mode')) === 'subscribe') {
-            if (($r->get('hub_verify_token') ?? $r->get('hub.verify_token')) === $token) {
-                return response($r->get('hub_challenge') ?? $r->get('hub.challenge'), 200);
+        // --- VERIFY (GET) ---
+        if ($request->isMethod('get')) {
+            // Facebook gửi các key dạng hub.mode / hub.verify_token / hub.challenge
+            $mode       = $request->query('hub_mode') ?? $request->query('hub.mode');
+            $token      = $request->query('hub_verify_token') ?? $request->query('hub.verify_token');
+            $challenge  = $request->query('hub_challenge') ?? $request->query('hub.challenge');
+
+            $expected = config('services.facebook.verify_token', env('WEBHOOK_VERIFY_TOKEN'));
+
+            if ($mode === 'subscribe' && $token && $token === $expected) {
+                return response($challenge, 200);
             }
+
+            // Truy cập trực tiếp trên trình duyệt (không có hub.*) => trả text an toàn
             return response('Invalid verify token', 403);
         }
-        return response('OK', 200);
-    }
 
-    public function handle(Request $r, FacebookService $fb)
-    {
-        try {
-            $signature = $r->header('X-Hub-Signature-256');
-            $payload   = $r->getContent();
+        // --- EVENT (POST) ---
+        // (tùy chọn) log lại để debug
+        Log::info('FB Webhook payload', ['headers' => $request->headers->all(), 'body' => $request->all()]);
 
-            $secret = env('FACEBOOK_APP_SECRET');
-            if ($secret && !$fb->verifySignature($payload, $signature)) {
-                Log::warning('FB webhook: invalid signature');
-                return response()->json(['ok'=>false], 403);
-            }
+        // Ở đây bạn có thể dispatch Job xử lý:
+        // dispatch(new \App\Jobs\ProcessFacebookEvent($request->all()));
 
-            $data = $r->all();
-
-            if (class_exists(\App\Jobs\FacebookWebhookHandler::class)) {
-                \App\Jobs\FacebookWebhookHandler::dispatch($data)->onQueue('fb-webhook');
-            } elseif (class_exists(\App\Jobs\ProcessFacebookEvent::class)) {
-                \App\Jobs\ProcessFacebookEvent::dispatch($data)->onQueue('fb-webhook');
-            } else {
-                Log::info('FB webhook received (no handler job found)', ['keys'=>array_keys($data ?? [])]);
-            }
-
-            return response()->json(['ok'=>true], 200);
-        } catch (\Throwable $e) {
-            Log::error('FB webhook error: '.$e->getMessage(), ['trace'=>$e->getTraceAsString()]);
-            return response()->json(['ok'=>false,'note'=>'captured'], 200);
-        }
+        // Facebook yêu cầu 200 trong 20s
+        return response('EVENT_RECEIVED', 200);
     }
 }

@@ -7,10 +7,11 @@ use Illuminate\Support\Facades\Route;
  * Nếu tên/namespace khác, chỉnh lại cho đúng.
  */
 use App\Http\Controllers\HomeController;
-use App\Http\Controllers\Auth\FacebookAuthController;
-use App\Http\Controllers\Webhook\FacebookWebhookController;
+use App\Http\Controllers\FacebookAuthController;
+use App\Http\Controllers\WebhookController;
 use App\Http\Controllers\PageConnectController;
 use App\Http\Controllers\InboxController;
+use App\Http\Middleware\VerifyCsrfToken;
 
 // Admin
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
@@ -59,11 +60,11 @@ Route::get('/auth/facebook/callback', [FacebookAuthController::class, 'callback'
 |
 | Lưu ý: đã loại trừ CSRF cho POST này trong VerifyCsrfToken.
 */
-Route::get('/webhook/facebook',  [FacebookWebhookController::class, 'verify'])
-    ->name('fb.webhook.verify');
-Route::post('/webhook/facebook', [FacebookWebhookController::class, 'receive'])
-    ->name('fb.webhook.receive');
-
+// Webhook verification (GET) + events (POST)
+// Webhook: dùng 1 endpoint cho cả GET verify và POST event
+Route::match(['GET', 'POST'], '/webhook/facebook', [WebhookController::class, 'handle'])
+    ->name('webhook.facebook')
+    ->withoutMiddleware([VerifyCsrfToken::class]);
 /*
 |--------------------------------------------------------------------------
 | Pages Connect (liệt kê & kết nối Page)
@@ -88,12 +89,10 @@ Route::middleware(['web', 'auth'])->group(function () {
 | {page} hỗ trợ Route Model Binding: App\Models\Page
 */
 Route::middleware(['web', 'auth'])->group(function () {
-    Route::get('/{page}/inbox',        [InboxController::class, 'show'])
-        ->whereNumber('page')
-        ->name('inbox.show');
-    Route::post('/{page}/inbox/send',  [InboxController::class, 'send'])
-        ->whereNumber('page')
-        ->name('inbox.send');
+    // Step 2 - Inbox
+    Route::get('/{page}/inbox', [InboxController::class,'index'])->whereNumber('page');
+    Route::get('/{page}/inbox/{customer}', [InboxController::class,'show'])->whereNumber(['page','customer']);
+    Route::post('/{page}/inbox/{customer}/send', [InboxController::class,'send'])->whereNumber(['page','customer']);
 });
 
 /*

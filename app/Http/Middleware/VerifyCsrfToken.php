@@ -12,7 +12,8 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        'webhook/facebook',       // <— thêm dòng này
-        // hoặc 'webhook/*' nếu bạn có nhiều webhook
-    ];
+		'webhook/*',
+		'webhook/facebook',
+		'api/webhook/*',      // nếu sau này chuyển sang routes/api.php
+	];
 }
