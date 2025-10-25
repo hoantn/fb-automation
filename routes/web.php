@@ -53,20 +53,6 @@ Route::get('/auth/facebook/callback', [FacebookAuthController::class, 'callback'
 
 /*
 |--------------------------------------------------------------------------
-| Webhook Facebook (verify + receive)
-|--------------------------------------------------------------------------
-| GET  /webhook/facebook  -> verify (hub.mode, hub.verify_token, hub.challenge)
-| POST /webhook/facebook  -> nhận event (messages, messaging_postbacks,...)
-|
-| Lưu ý: đã loại trừ CSRF cho POST này trong VerifyCsrfToken.
-*/
-// Webhook verification (GET) + events (POST)
-// Webhook: dùng 1 endpoint cho cả GET verify và POST event
-Route::match(['GET', 'POST'], '/webhook/facebook', [WebhookController::class, 'handle'])
-    ->name('webhook.facebook')
-    ->withoutMiddleware([VerifyCsrfToken::class]);
-/*
-|--------------------------------------------------------------------------
 | Pages Connect (liệt kê & kết nối Page)
 |--------------------------------------------------------------------------
 | GET  /pages/connect  -> listManagedPages() (gọi Graph bằng user token)

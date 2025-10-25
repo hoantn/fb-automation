@@ -7,6 +7,7 @@ return [
         'client_secret' => env('FACEBOOK_CLIENT_SECRET'),
         'redirect'      => env('FACEBOOK_REDIRECT_URI'),
         'app_secret'    => env('FACEBOOK_APP_SECRET'),
+		'verify_token'  => env('WEBHOOK_VERIFY_TOKEN'),
     ],
 
 ];
