@@ -7,11 +7,12 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken as Middleware;
 class VerifyCsrfToken extends Middleware
 {
     /**
-     * Các URI không kiểm tra CSRF.
-     * LƯU Ý: không có dấu "/" ở đầu.
+     * The URIs that should be excluded from CSRF verification.
      */
     protected $except = [
-		'webhook/*',
-		'/webhook/*',
-	];
+        'webhook/*',
+        '/webhook/*',
+        'api/webhook/*',
+        '/api/webhook/*',
+    ];
 }
