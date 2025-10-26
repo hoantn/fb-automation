@@ -11,6 +11,7 @@ class VerifyCsrfToken extends Middleware
      * LƯU Ý: không có dấu "/" ở đầu.
      */
     protected $except = [
-        'webhook/*',
-    ];
+		'webhook/*',
+		'/webhook/*',
+	];
 }

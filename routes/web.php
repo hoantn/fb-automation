@@ -11,7 +11,6 @@ use App\Http\Controllers\FacebookAuthController;
 use App\Http\Controllers\WebhookController;
 use App\Http\Controllers\PageConnectController;
 use App\Http\Controllers\InboxController;
-use App\Http\Middleware\VerifyCsrfToken;
 
 // Admin
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
@@ -38,10 +37,7 @@ Route::get('/login', function () {
     return redirect('/auth/facebook/redirect');
 })->name('login');
 
-// Webhook Facebook (GET verify + POST event)
-Route::match(['GET', 'POST'], '/webhook/facebook', [WebhookController::class, 'handle'])
-    ->name('webhook.facebook')
-    ->withoutMiddleware(\App\Http\Middleware\VerifyCsrfToken::class); // đảm bảo POST không bị CSRF
+
 /*
 |--------------------------------------------------------------------------
 | Auth - Facebook SSO (Socialite)
