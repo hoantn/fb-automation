@@ -100,7 +100,8 @@ class InboxController extends Controller
 
         // persist outgoing message
         DB::table('messages')->insert([
-            'conversation_id' => $conversation->id,
+            'page_id' => $conversation->page_id,
+            'customer_id' => $conversation->customer_id,
             'direction'       => 'out',
             'text'            => $data['text'],
             'created_at'      => now(),

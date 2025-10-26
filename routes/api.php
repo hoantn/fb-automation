@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\WebhookController;
 
-// Health check để test nhanh
+// Laravel 12: routes/api.php is auto-prefixed with /api via bootstrap/app.php
 Route::get('/health', fn() => response()->json(['ok' => true]));
 
 // Facebook Webhook

@@ -37,3 +37,5 @@
   </div>
 </div>
 @endsection
+
+<script>setTimeout(()=>location.reload(), 5000);</script>
